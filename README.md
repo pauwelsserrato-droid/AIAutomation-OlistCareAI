@@ -97,4 +97,5 @@ El repositorio incluye diagramas tecnicos, el workflow exportado y una guia de c
 
 Subir esta carpeta a un repositorio publico de GitHub. Antes de entregar, completar el enlace de Airtable en modo lectura, agregar las capturas reales en `evidencias/ejecucion-real/` y verificar el checklist final.
 
+- [Repositorio del proyecto](https://github.com/pauwelsserrato-droid/AIAutomation-OlistCareAI)
 - [Vista de Airtable en modo lectura](https://airtable.com/appTpUjci4Aj48KNR/shrRBt8lKLyePUH0y)
