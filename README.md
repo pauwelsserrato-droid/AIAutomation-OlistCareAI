@@ -99,3 +99,4 @@ Subir esta carpeta a un repositorio publico de GitHub. Antes de entregar, comple
 
 - [Repositorio del proyecto](https://github.com/pauwelsserrato-droid/AIAutomation-OlistCareAI)
 - [Vista de Airtable en modo lectura](https://airtable.com/appTpUjci4Aj48KNR/shrRBt8lKLyePUH0y)
+- [Video demostrativo](https://drive.google.com/file/d/1U5sE3KnQG-dQnZtTOe8FCTOv38U2JsSr/view?usp=drive_link)
