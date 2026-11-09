@@ -1,0 +1,8 @@
+{
+  "ticket_id": "TKT-DEMO-003",
+  "customer_email": "",
+  "order_id": "OLIST-1001",
+  "message": "No llego.",
+  "source": "webhook",
+  "automation_source": "customer"
+}

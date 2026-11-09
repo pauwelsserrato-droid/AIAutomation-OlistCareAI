@@ -1,0 +1,10 @@
+{
+  "ticket_id": "TKT-DEMO-001",
+  "customer_email": "ana.silva@example.com",
+  "order_id": "OLIST-1001",
+  "message": "Mi pedido debia llegar hace cuatro dias y todavia no lo recibi. Lo necesito con urgencia.",
+  "source": "webhook",
+  "gmail_thread_id": "thread_demo_001",
+  "gmail_message_id": "message_demo_001",
+  "automation_source": "customer"
+}

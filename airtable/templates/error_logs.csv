@@ -1,0 +1,2 @@
+workflow,execution_id,node,error_type,message,ticket_id,payload_excerpt,resolved
+OlistCare AI - Principal,DEMO,00 Seed,VALIDATION,Registro de ejemplo para validar la tabla,TKT-SEED-001,Sin datos sensibles,true

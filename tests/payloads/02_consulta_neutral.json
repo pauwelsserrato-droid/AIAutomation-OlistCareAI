@@ -1,0 +1,8 @@
+{
+  "ticket_id": "TKT-DEMO-002",
+  "customer_email": "bruno.costa@example.com",
+  "order_id": "OLIST-1002",
+  "message": "Hola, quisiera saber si mi pedido sigue previsto para esta semana. Gracias.",
+  "source": "webhook",
+  "automation_source": "customer"
+}

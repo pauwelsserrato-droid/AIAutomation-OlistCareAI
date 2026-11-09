@@ -1,0 +1,1055 @@
+{
+  "name": "OlistCare AI - Principal",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "olistcare-ticket",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "dc94ad43-01b6-40c3-b6cd-9e2631ce6758",
+      "name": "01 Trigger Webhook Ticket",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        272
+      ],
+      "webhookId": "f4a104ad-1696-4fe0-a28a-1d772c5a1001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst email = String(body.customer_email ?? '').trim().toLowerCase();\nconst rawOrderId = String(body.order_id ?? '').trim();\nconst orderId = rawOrderId.replace(/[^A-Za-z0-9_-]/g, '');\nconst message = String(body.message ?? '').trim();\nconst automationSource = String(body.automation_source ?? 'customer').trim();\nconst missing = [];\nif (!email || !email.includes('@')) missing.push('customer_email');\nif (!orderId || orderId !== rawOrderId) missing.push('order_id');\nif (message.length < 15) missing.push('message');\nif (automationSource === 'olistcare_ai') missing.push('loop_detected');\nreturn [{ json: {\n  ticket_id: String(body.ticket_id ?? `TKT-${Date.now()}`),\n  customer_email: email,\n  order_id: orderId,\n  message,\n  source: String(body.source ?? 'webhook'),\n  gmail_thread_id: String(body.gmail_thread_id ?? ''),\n  gmail_message_id: String(body.gmail_message_id ?? ''),\n  automation_source: automationSource,\n  received_at: new Date().toISOString(),\n  valid: missing.length === 0,\n  missing_fields: missing\n} }];"
+      },
+      "id": "744d6249-5d39-43d1-99c3-3b08ae9f18ae",
+      "name": "02 Normalizar entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "valid-condition",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "03a06510-7840-4543-a490-e8a769bf52ba",
+      "name": "03 Validar datos minimos y anti loop",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        336,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: true, ticket_id: $json.ticket_id, status: 'Pendiente', message: 'Ticket recibido. El procesamiento continua de forma asincrona.' } }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "394f6961-36c5-4d3b-9232-f605714d0994",
+      "name": "04 Responder recepcion 202",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        576,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Orders",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filterByFormula",
+              "value": "={{ \"{order_id}='\" + $json.order_id + \"'\" }}"
+            },
+            {
+              "name": "maxRecords",
+              "value": "1"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "d5faf413-9aa4-4a1e-8ffd-cabf7f508b63",
+      "name": "05 Buscar pedido en Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        576,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticket = $('02 Normalizar entrada').first().json;\nconst records = Array.isArray($json.records) ? $json.records : [];\nconst record = records[0] ?? null;\nreturn [{ json: {\n  ...ticket,\n  order_found: Boolean(record),\n  order_record_id: record?.id ?? '',\n  order: record?.fields ?? {}\n} }];"
+      },
+      "id": "eb3077a4-7ee6-4593-8c31-82fb20603d6f",
+      "name": "06 Preparar contexto de pedido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "order-found-condition",
+              "leftValue": "={{ $json.order_found }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ce6ad8ca-e2d7-4bd8-a731-dded1433650c",
+      "name": "07 Confirmar pedido encontrado",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'openrouter/free', messages: [ { role: 'system', content: 'Sos un analista senior de soporte para un marketplace similar a Olist. Clasifica el reclamo y redacta un borrador seguro para revision humana. Usa solo los datos provistos. No inventes fechas, movimientos, reembolsos, descuentos ni compensaciones. Responde exclusivamente con JSON valido con estas claves: category, priority, sentiment, summary, draft_reply, needs_human_review y risk_flags. category debe ser demora, seguimiento, cancelacion, reembolso u otro. priority debe ser baja, media, alta o critica. sentiment debe ser positivo, neutral, frustrado o enojado. needs_human_review debe ser true y risk_flags debe ser un array.' }, { role: 'user', content: JSON.stringify({ ticket: { ticket_id: $json.ticket_id, customer_email: $json.customer_email, message: $json.message }, order: { order_id: $json.order_id, order_status: $json.order.order_status, estimated_delivery: $json.order.estimated_delivery, last_tracking_event: $json.order.last_tracking_event, carrier: $json.order.carrier, order_total: $json.order.order_total } }) } ], max_tokens: 650, temperature: 0.2 } }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "09aa2b46-777e-42fc-8d16-dcd61d0b3ee3",
+      "name": "08 Analizar ticket con OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1280,
+        288
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "zRBmEbpObVkOojDG",
+          "name": "Header Auth account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const context = $('06 Preparar contexto de pedido').first().json;\nconst message = $json.choices?.[0]?.message ?? {};\nconst content = message.content;\n\nconst fallback = (reason) => ({\n  category: 'otro',\n  priority: 'alta',\n  sentiment: 'neutral',\n  summary: 'La IA no devolvio una respuesta utilizable. El ticket requiere revision humana.',\n  draft_reply: 'No se genero un borrador automatico seguro. Revisar el ticket y los datos del pedido antes de responder al cliente.',\n  needs_human_review: true,\n  risk_flags: [reason]\n});\n\nlet parsed;\nif (!content) {\n  parsed = fallback($json.error ? 'ai_api_error' : 'ai_empty_response');\n} else {\n  const clean = String(content).trim()\n    .replace(/^\\x60\\x60\\x60(?:json)?\\s*/i, '')\n    .replace(/\\s*\\x60\\x60\\x60$/, '')\n    .trim();\n  try {\n    parsed = JSON.parse(clean);\n  } catch {\n    parsed = fallback('ai_invalid_json');\n  }\n}\n\nreturn [{ json: { ...context, ...parsed, ai_provider: 'OpenRouter', openai_response_id: $json.id ?? '' } }];"
+      },
+      "id": "362a9172-fce4-40ef-a890-de0de93ceb3d",
+      "name": "09 Interpretar respuesta IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Tickets",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fields: { ticket_id: $json.ticket_id, ...(Array.isArray($json.order.customer_id) ? { customer: $json.order.customer_id } : {}), customer_email: $json.customer_email, message: $json.message, status: 'Pendiente', needs_human_review: true, gmail_thread_id: $json.gmail_thread_id } } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "65a4712f-f2da-45b2-a6dd-c16a44bbd03a",
+      "name": "10 Crear ticket procesado en Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1760,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {}
+      },
+      "id": "20f26261-a127-481f-a7de-40124b943e3c",
+      "name": "12 Esperar decision humana HITL",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2240,
+        288
+      ],
+      "webhookId": "875b88de-4561-47ea-b30d-a2167e9f55b2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const query = $json.query ?? $json;\nconst decision = String(query.decision ?? '').toLowerCase();\nconst ticketRecordId = String(query.ticket_record_id ?? $('10 Crear ticket procesado en Airtable').first().json.id ?? '');\nreturn [{ json: { decision, approved: decision === 'approved', approved_by: String(query.approved_by ?? 'Gmail'), ticket_record_id: ticketRecordId, decided_at: new Date().toISOString() } }];"
+      },
+      "id": "06c27448-af51-4e68-b246-69b4cf5e42dc",
+      "name": "13 Evaluar decision humana",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "approved-condition",
+              "leftValue": "={{ $json.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fa288223-808f-4d31-b8f5-877f886e871e",
+      "name": "14 Respuesta aprobada",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2720,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Tickets/{{$json.ticket_record_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fields: { status: 'Aprobado por Humano' } } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "1d4c5d05-d5c7-47e9-8495-5e2a59883019",
+      "name": "15 Marcar aprobado en Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2960,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const context = $('06 Preparar contexto de pedido').first().json;\nconst ai = $('09 Interpretar respuesta IA').first().json;\nconst from = $env.GMAIL_FROM;\nconst subject = `Re: Pedido ${context.order_id} - seguimiento de entrega`;\nconst messageId = context.gmail_message_id;\nconst headers = [\n  `From: ${from}`,\n  `To: ${context.customer_email}`,\n  `Subject: ${subject}`,\n  'Content-Type: text/plain; charset=UTF-8',\n  'MIME-Version: 1.0',\n  'X-Automation-Source: olistcare_ai'\n];\nif (messageId) headers.push(`In-Reply-To: ${messageId}`, `References: ${messageId}`);\nconst mime = `${headers.join('\\r\\n')}\\r\\n\\r\\n${ai.draft_reply}`;\nconst raw = Buffer.from(mime, 'utf8').toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');\nreturn [{ json: { raw, threadId: context.gmail_thread_id, ticket_record_id: $('13 Evaluar decision humana').first().json.ticket_record_id } }];"
+      },
+      "id": "959de8dd-d011-4155-9e36-2fde7d37b46a",
+      "name": "16 Preparar mensaje Gmail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { raw: $json.raw, ...($json.threadId ? { threadId: $json.threadId } : {}) } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d317b5cd-dded-4a1f-9149-1f8ae2da4eda",
+      "name": "17 Enviar respuesta por Gmail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3440,
+        176
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "NOS4YAyEWE3mfXca",
+          "name": "Bearer Auth account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Tickets/{{ $('13 Evaluar decision humana').first().json.ticket_record_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fields: { status: 'Respondido', gmail_thread_id: $json.threadId || '' } } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "ffaaf80f-ae58-4d2d-b9b7-1775b412dba8",
+      "name": "18 Marcar respondido en Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3680,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: `Ticket ${$('09 Interpretar respuesta IA').first().json.ticket_id} aprobado y respondido por Gmail.` } }}",
+        "options": {}
+      },
+      "id": "57a0c7b6-8222-4cbf-8a9e-ec871c83ed59",
+      "name": "19 Notificar exito en Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3920,
+        112
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Tickets/{{$json.ticket_record_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fields: { status: 'Rechazado por Humano' } } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "44f6ddd1-0c1c-445a-bd00-c0011bf8dad5",
+      "name": "20 Marcar rechazado en Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2960,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: `Ticket ${$('09 Interpretar respuesta IA').first().json.ticket_id} rechazado por humano. No se envio ningun correo.` } }}",
+        "options": {}
+      },
+      "id": "c86591c2-0707-44ba-979f-228833a934cc",
+      "name": "21 Notificar rechazo en Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3200,
+        448
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Error%20Logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fields: { workflow: 'OlistCare AI - Principal', execution_id: $execution.id, node: '03 Validar datos minimos y anti loop', error_type: 'VALIDATION', message: `Campos invalidos: ${$json.missing_fields.join(', ')}`, ticket_id: $json.ticket_id, payload_excerpt: JSON.stringify({ order_id: $json.order_id, source: $json.source, automation_source: $json.automation_source }), resolved: false } } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4c094e12-b52f-4495-9ce5-a87af397a554",
+      "name": "22 Registrar error de validacion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        576,
+        608
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: false, ticket_id: $('02 Normalizar entrada').first().json.ticket_id, error: 'VALIDATION', invalid_fields: $('02 Normalizar entrada').first().json.missing_fields } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "ed1c155a-dfcc-4998-8f6b-3482ca8c74f7",
+      "name": "23 Responder validacion 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        816,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Error%20Logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fields: { workflow: 'OlistCare AI - Principal', execution_id: $execution.id, node: '05 Buscar pedido en Airtable', error_type: 'ORDER_NOT_FOUND', message: `No se encontro el pedido ${$json.order_id}`, ticket_id: $json.ticket_id, payload_excerpt: JSON.stringify({ order_id: $json.order_id, customer_email: $json.customer_email.replace(/(^.).*(@.*$)/, '$1***$2') }), resolved: false } } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "9babb4bd-9152-4d69-afdf-92e863ca9800",
+      "name": "24 Registrar pedido inexistente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1280,
+        576
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_ALERT_WEBHOOK_URL || $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: `Revision manual requerida: no se encontro el pedido ${$('06 Preparar contexto de pedido').first().json.order_id} para el ticket ${$('06 Preparar contexto de pedido').first().json.ticket_id}.` } }}",
+        "options": {}
+      },
+      "id": "5fadd184-4bd5-4f3e-9837-5fa58786b84a",
+      "name": "25 Alertar pedido inexistente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1520,
+        576
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Error%20Logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fields: { workflow: 'OlistCare AI - Principal', execution_id: $execution.id, node: '08 Analizar ticket con OpenAI', error_type: 'OPENAI_API', message: String($json.message || $json.error?.message || 'Fallo de OpenAI').slice(0, 1000), ticket_id: $('06 Preparar contexto de pedido').first().json.ticket_id, payload_excerpt: JSON.stringify({ order_id: $('06 Preparar contexto de pedido').first().json.order_id }), resolved: false } } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "62cf129c-4593-48f4-8ed1-5093c56e612f",
+      "name": "26 Registrar error OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1520,
+        -32
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_ALERT_WEBHOOK_URL || $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: `Error de OpenAI en el ticket ${$('06 Preparar contexto de pedido').first().json.ticket_id}. El incidente fue registrado y no se contacto al cliente.` } }}",
+        "options": {}
+      },
+      "id": "4f7fd990-3160-4cb2-bb2f-d211dc4d22ba",
+      "name": "27 Alertar error OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1760,
+        -32
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Error%20Logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fields: { workflow: 'OlistCare AI - Principal', execution_id: $execution.id, node: '17 Enviar respuesta por Gmail', error_type: 'GMAIL_API', message: String($json.message || $json.error?.message || 'Fallo de Gmail').slice(0, 1000), ticket_id: $('09 Interpretar respuesta IA').first().json.ticket_id, payload_excerpt: JSON.stringify({ order_id: $('09 Interpretar respuesta IA').first().json.order_id }), resolved: false } } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "9f2699b1-2d96-4cb2-afde-bb55e1388113",
+      "name": "28 Registrar error Gmail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3680,
+        352
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_ALERT_WEBHOOK_URL || $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: `Error de Gmail en el ticket ${$('09 Interpretar respuesta IA').first().json.ticket_id}. La aprobacion quedo registrada pero el correo no fue enviado.` } }}",
+        "options": {}
+      },
+      "id": "399ab2c9-5af1-426f-96b7-a4b986fb2217",
+      "name": "29 Alertar error Gmail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3920,
+        352
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "message/rfc822"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "message/rfc822",
+        "body": "={{ [ `From: ${$env.GMAIL_FROM}`, `To: ${$env.APPROVAL_EMAIL}`, `Subject: Aprobacion requerida - ${$('09 Interpretar respuesta IA').first().json.ticket_id}`, 'Content-Type: text/plain; charset=UTF-8', 'MIME-Version: 1.0', '', `Ticket: ${$('09 Interpretar respuesta IA').first().json.ticket_id}`, `Resumen: ${$('09 Interpretar respuesta IA').first().json.summary}`, `Borrador: ${$('09 Interpretar respuesta IA').first().json.draft_reply}`, '', `APROBAR: ${$execution.resumeUrl}&decision=approved&ticket_record_id=${$json.id}&approved_by=Gmail`, '', `RECHAZAR: ${$execution.resumeUrl}&decision=rejected&ticket_record_id=${$json.id}&approved_by=Gmail` ].join('\\r\\n') }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b75d6158-e47d-4e39-85ab-73c4ce1cc4f8",
+      "name": "11 Solicitar aprobacion por Gmail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2000,
+        288
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "NOS4YAyEWE3mfXca",
+          "name": "Bearer Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 Trigger Webhook Ticket": {
+      "main": [
+        [
+          {
+            "node": "02 Normalizar entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Normalizar entrada": {
+      "main": [
+        [
+          {
+            "node": "03 Validar datos minimos y anti loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 Validar datos minimos y anti loop": {
+      "main": [
+        [
+          {
+            "node": "04 Responder recepcion 202",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "05 Buscar pedido en Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "22 Registrar error de validacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 Buscar pedido en Airtable": {
+      "main": [
+        [
+          {
+            "node": "06 Preparar contexto de pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 Preparar contexto de pedido": {
+      "main": [
+        [
+          {
+            "node": "07 Confirmar pedido encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 Confirmar pedido encontrado": {
+      "main": [
+        [
+          {
+            "node": "08 Analizar ticket con OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "24 Registrar pedido inexistente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 Analizar ticket con OpenAI": {
+      "main": [
+        [
+          {
+            "node": "09 Interpretar respuesta IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "26 Registrar error OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 Interpretar respuesta IA": {
+      "main": [
+        [
+          {
+            "node": "10 Crear ticket procesado en Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 Crear ticket procesado en Airtable": {
+      "main": [
+        [
+          {
+            "node": "11 Solicitar aprobacion por Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 Esperar decision humana HITL": {
+      "main": [
+        [
+          {
+            "node": "13 Evaluar decision humana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 Evaluar decision humana": {
+      "main": [
+        [
+          {
+            "node": "14 Respuesta aprobada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 Respuesta aprobada": {
+      "main": [
+        [
+          {
+            "node": "15 Marcar aprobado en Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "20 Marcar rechazado en Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15 Marcar aprobado en Airtable": {
+      "main": [
+        [
+          {
+            "node": "16 Preparar mensaje Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16 Preparar mensaje Gmail": {
+      "main": [
+        [
+          {
+            "node": "17 Enviar respuesta por Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "17 Enviar respuesta por Gmail": {
+      "main": [
+        [
+          {
+            "node": "18 Marcar respondido en Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "28 Registrar error Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18 Marcar respondido en Airtable": {
+      "main": [
+        [
+          {
+            "node": "19 Notificar exito en Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 Marcar rechazado en Airtable": {
+      "main": [
+        [
+          {
+            "node": "21 Notificar rechazo en Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 Registrar error de validacion": {
+      "main": [
+        [
+          {
+            "node": "23 Responder validacion 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "24 Registrar pedido inexistente": {
+      "main": [
+        [
+          {
+            "node": "25 Alertar pedido inexistente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "26 Registrar error OpenAI": {
+      "main": [
+        [
+          {
+            "node": "27 Alertar error OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "28 Registrar error Gmail": {
+      "main": [
+        [
+          {
+            "node": "29 Alertar error Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 Solicitar aprobacion por Gmail": {
+      "main": [
+        [
+          {
+            "node": "12 Esperar decision humana HITL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "cFDITCysLRrDabyh",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "4f8a1d7a-6b4a-4311-9260-c03827555b20",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ae68a0b160261756e5823bc2c23f095f5698777a234163b021b614c15cb07876"
+  },
+  "nodeGroups": [],
+  "id": "bmlpS5pjRnBSKNRB",
+  "tags": []
+}

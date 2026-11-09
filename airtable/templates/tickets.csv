@@ -1,0 +1,2 @@
+ticket_id,customer_email,message,status,priority,sentiment,category,needs_human_review,gmail_thread_id
+TKT-SEED-001,ana.silva@example.com,Consulta de ejemplo para validar el esquema,Pendiente,media,neutral,seguimiento,true,

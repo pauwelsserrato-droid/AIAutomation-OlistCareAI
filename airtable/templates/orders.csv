@@ -1,0 +1,4 @@
+order_id,customer_id,order_status,estimated_delivery,last_tracking_event,carrier,order_total
+OLIST-1001,CUST-001,shipped,2026-11-02,El paquete salio del centro logistico de Sao Paulo el 30 de octubre,Correios,249.90
+OLIST-1002,CUST-002,shipped,2026-11-09,El paquete fue recibido por el transportista el 5 de noviembre,Jadlog,89.50
+OLIST-1003,CUST-003,delivered,2026-11-04,Entrega confirmada el 4 de noviembre,Loggi,315.00

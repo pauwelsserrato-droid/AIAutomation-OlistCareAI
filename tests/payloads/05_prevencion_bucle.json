@@ -1,0 +1,8 @@
+{
+  "ticket_id": "TKT-DEMO-005",
+  "customer_email": "ana.silva@example.com",
+  "order_id": "OLIST-1001",
+  "message": "Respuesta automatica generada por el propio flujo.",
+  "source": "gmail",
+  "automation_source": "olistcare_ai"
+}

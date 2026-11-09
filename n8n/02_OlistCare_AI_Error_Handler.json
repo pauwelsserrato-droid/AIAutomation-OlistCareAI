@@ -1,0 +1,80 @@
+{
+  "name": "OlistCare AI - Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "fb190bf8-6df6-4ea6-a19a-e11000000001",
+      "name": "01 Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [-500, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const execution = $json.execution ?? {};\nconst workflow = $json.workflow ?? {};\nconst trigger = $json.trigger ?? {};\nreturn [{ json: {\n  workflow_name: String(workflow.name ?? 'OlistCare AI'),\n  execution_id: String(execution.id ?? ''),\n  execution_url: String(execution.url ?? ''),\n  node_name: String(execution.lastNodeExecuted ?? trigger.error?.node?.name ?? 'desconocido'),\n  error_message: String(execution.error?.message ?? trigger.error?.message ?? $json.message ?? 'Error no especificado').slice(0, 1000),\n  ticket_id: String(trigger.error?.context?.ticket_id ?? ''),\n  created_at: new Date().toISOString()\n} }];"
+      },
+      "id": "fb190bf8-6df6-4ea6-a19a-e11000000002",
+      "name": "02 Normalizar error global",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Error%20Logs",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [
+          {"name": "Authorization", "value": "=Bearer {{$env.AIRTABLE_TOKEN}}"},
+          {"name": "Content-Type", "value": "application/json"}
+        ]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { fields: { workflow: $json.workflow_name, execution_id: $json.execution_id, node: $json.node_name, error_type: 'UNHANDLED', message: $json.error_message, ticket_id: $json.ticket_id, payload_excerpt: JSON.stringify({ execution_url: $json.execution_url }), resolved: false } } }}",
+        "options": {"timeout": 15000}
+      },
+      "id": "fb190bf8-6df6-4ea6-a19a-e11000000003",
+      "name": "03 Guardar error en Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [0, -100],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_ALERT_WEBHOOK_URL || $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: `Error no controlado en ${$json.workflow_name}. Nodo: ${$json.node_name}. Ejecucion: ${$json.execution_id}. Mensaje: ${$json.error_message}` } }}",
+        "options": {"timeout": 15000}
+      },
+      "id": "fb190bf8-6df6-4ea6-a19a-e11000000004",
+      "name": "04 Alertar error global en Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [0, 100]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 Error Trigger": {"main": [[{"node": "02 Normalizar error global", "type": "main", "index": 0}]]},
+    "02 Normalizar error global": {"main": [[
+      {"node": "03 Guardar error en Airtable", "type": "main", "index": 0},
+      {"node": "04 Alertar error global en Slack", "type": "main", "index": 0}
+    ]]}
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "availableInMCP": false
+  },
+  "versionId": "646861e8-2186-451d-b940-0a11e2200001",
+  "meta": {"templateCredsSetupCompleted": false},
+  "id": "OlistCareError",
+  "tags": []
+}

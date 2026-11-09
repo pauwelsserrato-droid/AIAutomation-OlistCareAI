@@ -1,0 +1,4 @@
+customer_id,full_name,email,segment,consent_contact
+CUST-001,Ana Silva,ana.silva@example.com,VIP,true
+CUST-002,Bruno Costa,bruno.costa@example.com,Standard,true
+CUST-003,Carla Mendes,carla.mendes@example.com,Plus,true

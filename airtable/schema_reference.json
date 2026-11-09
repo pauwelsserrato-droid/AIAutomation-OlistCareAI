@@ -1,0 +1,72 @@
+{
+  "base_name": "OlistCare AI",
+  "tables": [
+    {
+      "name": "Customers",
+      "primary_field": "customer_id",
+      "fields": {
+        "customer_id": "singleLineText",
+        "full_name": "singleLineText",
+        "email": "email",
+        "segment": "singleSelect: Standard|Plus|VIP",
+        "consent_contact": "checkbox",
+        "Orders": "linkTo:Orders",
+        "Tickets": "linkTo:Tickets"
+      }
+    },
+    {
+      "name": "Orders",
+      "primary_field": "order_id",
+      "fields": {
+        "order_id": "singleLineText",
+        "Customer": "linkTo:Customers",
+        "order_status": "singleSelect: processing|shipped|delivered|canceled",
+        "estimated_delivery": "date",
+        "last_tracking_event": "multilineText",
+        "carrier": "singleLineText",
+        "order_total": "currency",
+        "Tickets": "linkTo:Tickets"
+      }
+    },
+    {
+      "name": "Tickets",
+      "primary_field": "ticket_id",
+      "fields": {
+        "ticket_id": "singleLineText",
+        "Customer": "linkTo:Customers",
+        "Order": "linkTo:Orders",
+        "customer_email": "email",
+        "message": "multilineText",
+        "status": "singleSelect: Pendiente|Procesado por IA|Aprobado por Humano|Rechazado por Humano|Respondido|Error",
+        "priority": "singleSelect: baja|media|alta|critica",
+        "sentiment": "singleSelect: positivo|neutral|frustrado|enojado",
+        "category": "singleSelect: demora|seguimiento|cancelacion|reembolso|otro",
+        "ai_summary": "multilineText",
+        "ai_draft_reply": "multilineText",
+        "needs_human_review": "checkbox",
+        "approved_by": "singleLineText",
+        "approved_at": "dateTime",
+        "gmail_thread_id": "singleLineText",
+        "gmail_message_id": "singleLineText",
+        "created_at": "createdTime",
+        "processed_at": "dateTime"
+      }
+    },
+    {
+      "name": "Error Logs",
+      "primary_field": "error_id",
+      "fields": {
+        "error_id": "autoNumber",
+        "workflow": "singleLineText",
+        "execution_id": "singleLineText",
+        "node": "singleLineText",
+        "error_type": "singleSelect: VALIDATION|ORDER_NOT_FOUND|OPENAI_API|GMAIL_API|UNHANDLED",
+        "message": "multilineText",
+        "ticket_id": "singleLineText",
+        "payload_excerpt": "multilineText",
+        "created_at": "createdTime",
+        "resolved": "checkbox"
+      }
+    }
+  ]
+}

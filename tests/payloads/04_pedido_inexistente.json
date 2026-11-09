@@ -1,0 +1,8 @@
+{
+  "ticket_id": "TKT-DEMO-004",
+  "customer_email": "carla.mendes@example.com",
+  "order_id": "OLIST-9999",
+  "message": "Necesito conocer el estado actual de este pedido porque no tengo movimientos recientes.",
+  "source": "webhook",
+  "automation_source": "customer"
+}
